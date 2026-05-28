@@ -238,14 +238,18 @@ def main():
                 "argumente": argumente_task
             })
             print("[CLIENT] Astept rezultatul...")
-            rezultat = primeste_json(s)
-            if rezultat and rezultat.get("tip") == "REZULTAT":
-                eroare = rezultat.get("eroare")
-                if eroare:
-                    print(f"[CLIENT] Eroare: {eroare}")
-                else:
-                    print(f"[CLIENT] Task executat. Exit code: {rezultat.get('exit_code')}")
-            s.close()
+            try:
+                rezultat = primeste_json(s)
+                if rezultat and rezultat.get("tip") == "REZULTAT":
+                    eroare = rezultat.get("eroare")
+                    if eroare:
+                        print(f"[CLIENT] Eroare: {eroare}")
+                    else:
+                        print(f"[CLIENT] Task executat. Exit code: {rezultat.get('exit_code')}")
+            except Exception as e:
+                print(f"[CLIENT] Eroare la primirea rezultatului: {e}")
+            finally:
+                s.close()
 
         elif comanda == "ajutor":
             afiseaza_ajutor()
