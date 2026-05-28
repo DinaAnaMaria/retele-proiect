@@ -141,6 +141,7 @@ def gestioneaza_client_tcp(conn, addr):
                     daemon=True
                 )
                 t.start()
+                break
 
             elif tip == "REZULTAT":
                 task_id = mesaj.get("task_id")
