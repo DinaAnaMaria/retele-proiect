@@ -74,4 +74,66 @@ Clientii folosesc 9001 si 9002 doar in interiorul retelei Docker, deci nu
 intra in conflict cu nimic de pe gazda.
 
 
+## Scenariu de testare
 
+Pentru a verifica toate functionalitatile, urmati pasii:
+
+1. Porniti clusterul:
+
+       docker compose up --build
+
+   Asteptati pana vedeti in log:
+
+       [SERVER] Ascult UDP pe 0.0.0.0:9000
+       [SERVER] Ascult TCP pe 0.0.0.0:9000
+       [SERVER] Inregistrat client1:9001. Total: 1
+       [SERVER] Inregistrat client2:9002. Total: 2
+
+   Asta confirma ca serverul asculta pe ambele protocoale si ca ambii
+   clienti s-au inregistrat prin UDP.
+
+2. Intr-un al doilea terminal, atasati-va la client1:
+
+       docker attach distrib-client1
+
+   Apasati Enter pana apare prompt-ul `client>`.
+
+3. Trimiteti un task:
+
+       trimite example_task.py salut 123
+
+   In log-ul serverului ar trebui sa apara:
+
+       [SERVER] Task 1 trimis la client1:9001
+       [SERVER] Rezultat task 1: exit_code=0
+
+   Iar la client veti vedea `Exit code: 0`. Asta confirma executia ca
+   proces separat si returnarea exit code-ului.
+
+4. Trimiteti acelasi task din nou:
+
+       trimite example_task.py test round-robin
+
+   De data asta in log-ul serverului apare:
+
+       [SERVER] Task 2 trimis la client2:9002
+
+   Asta confirma distributia round-robin (al doilea task ajunge la al
+   doilea client, nu tot la primul).
+
+5. Intr-un al treilea terminal, opriti client2:
+
+       docker stop distrib-client2
+
+   In log-ul serverului ar trebui sa vedeti eventual o tentativa de
+   contact urmata de eliminarea lui din lista (la urmatorul task trimis).
+
+6. Reveniti la client1 si trimiteti din nou:
+
+       trimite example_task.py dupa eliminare
+
+   Task-ul trebuie sa ajunga acum la client1 (singurul ramas activ),
+   confirmand ca lista de clienti se actualizeaza corect.
+
+Pentru a iesi din attach fara a opri clientul: Ctrl+P, apoi Ctrl+Q.
+Pentru oprirea completa a clusterului: `docker compose down`.
