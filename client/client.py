@@ -51,7 +51,6 @@ def executa_task(date_binare, argumente, task_id):
         f.write(date_binare)
         cale = f.name
 
-    proces = None
     try:
         os.chmod(cale, 0o755)
 
@@ -63,22 +62,14 @@ def executa_task(date_binare, argumente, task_id):
             cmd = [cale] + [str(a) for a in argumente]
 
         print(f"[CLIENT] Rulez: {' '.join(cmd)}")
-        
-        proces = subprocess.Popen(cmd)
-        proces.communicate(timeout=30)
-        return proces.returncode
+        rezultat = subprocess.run(cmd, timeout=30)
+        return rezultat.returncode
 
     except subprocess.TimeoutExpired:
-        print(f"[CLIENT] Task {task_id} a depasit timpul limita. Incerc oprirea fortata...")
-        if proces:
-            proces.kill()
-            proces.wait()
+        print(f"[CLIENT] Task {task_id} a depasit timpul limita")
         return -2
     except Exception as e:
         print(f"[CLIENT] Eroare la executie: {e}")
-        if proces:
-            proces.kill()
-            proces.wait()
         return -1
     finally:
         try:
@@ -191,10 +182,6 @@ def main():
             "adresa": args.nume
         })
         sys.exit(0)
-
-    signal.signal(signal.SIGINT, oprire)
-    signal.signal(signal.SIGTERM, oprire)
-
     afiseaza_ajutor()
 
     while True:
@@ -238,18 +225,14 @@ def main():
                 "argumente": argumente_task
             })
             print("[CLIENT] Astept rezultatul...")
-            try:
-                rezultat = primeste_json(s)
-                if rezultat and rezultat.get("tip") == "REZULTAT":
-                    eroare = rezultat.get("eroare")
-                    if eroare:
-                        print(f"[CLIENT] Eroare: {eroare}")
-                    else:
-                        print(f"[CLIENT] Task executat. Exit code: {rezultat.get('exit_code')}")
-            except Exception as e:
-                print(f"[CLIENT] Eroare la primirea rezultatului: {e}")
-            finally:
-                s.close()
+            rezultat = primeste_json(s)
+            if rezultat and rezultat.get("tip") == "REZULTAT":
+                eroare = rezultat.get("eroare")
+                if eroare:
+                    print(f"[CLIENT] Eroare: {eroare}")
+                else:
+                    print(f"[CLIENT] Task executat. Exit code: {rezultat.get('exit_code')}")
+            s.close()
 
         elif comanda == "ajutor":
             afiseaza_ajutor()
