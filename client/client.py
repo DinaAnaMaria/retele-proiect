@@ -9,6 +9,7 @@ import tempfile
 import argparse
 import signal
 
+
 def trimite_json(sock, obj):
     data = json.dumps(obj).encode()
     sock.sendall(len(data).to_bytes(4, "big") + data)
@@ -36,6 +37,7 @@ def primeste_json(sock):
     if not data:
         return None
     return json.loads(data.decode())
+
 
 def executa_task(date_binare, argumente, task_id):
     if date_binare[:2] == b"#!":
@@ -76,6 +78,7 @@ def executa_task(date_binare, argumente, task_id):
             os.unlink(cale)
         except:
             pass
+
 
 def server_procesare(port_procesare, host_server, port_server):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -138,6 +141,7 @@ def trimite_rezultat(host_server, port_server, task_id, exit_code):
     except Exception as e:
         print(f"[CLIENT] Nu am putut trimite rezultatul la server: {e}")
 
+
 def afiseaza_ajutor():
     print("""
 Comenzi disponibile:
@@ -182,6 +186,10 @@ def main():
             "adresa": args.nume
         })
         sys.exit(0)
+
+    signal.signal(signal.SIGINT, oprire)
+    signal.signal(signal.SIGTERM, oprire)
+
     afiseaza_ajutor()
 
     while True:
