@@ -144,7 +144,11 @@ def gestioneaza_client_tcp(conn, addr):
                         })
                     except Exception as e:
                         print(f"[SERVER] Nu am putut trimite rezultatul: {e}")
-
+                    finally:
+                        try:
+                            conn_solicitant.close()
+                        except:
+                            pass
                 break
 
             else:
