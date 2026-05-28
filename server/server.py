@@ -73,21 +73,12 @@ def primeste_json(sock):
         return None
     return json.loads(data.decode())
 
-def trimite_task_la_client(task_id, binar, argumente, conexiune_solicitant):
+def trimite_task_la_client(task_id, binar, argumente):
     incercari = 0
     while incercari < 10:
         target = urmatorul_client()
         if target is None:
-            trimite_json(conexiune_solicitant, {
-                "tip": "REZULTAT",
-                "task_id": task_id,
-                "exit_code": None,
-                "eroare": "Niciun client disponibil"
-            })
-            return
-
-        with lock_rezultate:
-            rezultate[task_id] = conexiune_solicitant
+            return {"tip": "REZULTAT", "task_id": task_id, "exit_code": None, "eroare": "Niciun client disponibil"}
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -101,21 +92,14 @@ def trimite_task_la_client(task_id, binar, argumente, conexiune_solicitant):
             })
             s.close()
             print(f"[SERVER] Task {task_id} trimis la {target['adresa']}:{target['port']}")
-            return
+            return None
 
         except Exception as e:
             print(f"[SERVER] Client {target['adresa']}:{target['port']} indisponibil: {e}")
-            with lock_rezultate:
-                rezultate.pop(task_id, None)
             sterge_client(target["adresa"], target["port"])
             incercari += 1
 
-    trimite_json(conexiune_solicitant, {
-        "tip": "REZULTAT",
-        "task_id": task_id,
-        "exit_code": None,
-        "eroare": "Niciun client disponibil dupa mai multe incercari"
-    })
+    return {"tip": "REZULTAT", "task_id": task_id, "exit_code": None, "eroare": "Niciun client disponibil dupa mai multe incercari"}
 
 def gestioneaza_client_tcp(conn, addr):
     adresa_client = addr[0]
@@ -135,12 +119,15 @@ def gestioneaza_client_tcp(conn, addr):
                     continue
                 task_id = id_task_nou()
                 print(f"[SERVER] Task {task_id} primit de la {adresa_client}, argumente={argumente}")
-                t = threading.Thread(
-                    target=trimite_task_la_client,
-                    args=(task_id, binar, argumente, conn),
-                    daemon=True
-                )
-                t.start()
+
+                with lock_rezultate:
+                    rezultate[task_id] = conn
+
+                eroare_trimitere = trimite_task_la_client(task_id, binar, argumente)
+                if eroare_trimitere:
+                    with lock_rezultate:
+                        rezultate.pop(task_id, None)
+                    trimite_json(conn, eroare_trimitere)
 
             elif tip == "REZULTAT":
                 task_id = mesaj.get("task_id")
@@ -157,6 +144,8 @@ def gestioneaza_client_tcp(conn, addr):
                         })
                     except Exception as e:
                         print(f"[SERVER] Nu am putut trimite rezultatul: {e}")
+
+                break
 
             else:
                 trimite_json(conn, {"tip": "EROARE", "mesaj": f"Tip necunoscut: {tip}"})
