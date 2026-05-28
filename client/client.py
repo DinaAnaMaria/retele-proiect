@@ -51,6 +51,7 @@ def executa_task(date_binare, argumente, task_id):
         f.write(date_binare)
         cale = f.name
 
+    proces = None
     try:
         os.chmod(cale, 0o755)
 
@@ -62,14 +63,22 @@ def executa_task(date_binare, argumente, task_id):
             cmd = [cale] + [str(a) for a in argumente]
 
         print(f"[CLIENT] Rulez: {' '.join(cmd)}")
-        rezultat = subprocess.run(cmd, timeout=30)
-        return rezultat.returncode
+        
+        proces = subprocess.Popen(cmd)
+        proces.communicate(timeout=30)
+        return proces.returncode
 
     except subprocess.TimeoutExpired:
-        print(f"[CLIENT] Task {task_id} a depasit timpul limita")
+        print(f"[CLIENT] Task {task_id} a depasit timpul limita. Incerc oprirea fortata...")
+        if proces:
+            proces.kill()
+            proces.wait()
         return -2
     except Exception as e:
         print(f"[CLIENT] Eroare la executie: {e}")
+        if proces:
+            proces.kill()
+            proces.wait()
         return -1
     finally:
         try:
