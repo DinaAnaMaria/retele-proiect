@@ -156,6 +156,7 @@ def gestioneaza_client_tcp(conn, addr):
                             "task_id": task_id,
                             "exit_code": exit_code
                         })
+                        conn_solicitant.close()
                     except Exception as e:
                         print(f"[SERVER] Nu am putut trimite rezultatul: {e}")
 
