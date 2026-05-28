@@ -137,3 +137,113 @@ def trimite_rezultat(host_server, port_server, task_id, exit_code):
         s.close()
     except Exception as e:
         print(f"[CLIENT] Nu am putut trimite rezultatul la server: {e}")
+
+def afiseaza_ajutor():
+    print("""
+Comenzi disponibile:
+  trimite <fisier> [arg1 arg2 ...]   - Trimite un task pentru executie distribuita
+  iesire                             - Deconectare si inchidere
+  ajutor                             - Afiseaza acest mesaj
+""")
+
+
+def trimite_udp(host_server, port_server, mesaj):
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.sendto(json.dumps(mesaj).encode(), (host_server, port_server))
+    s.close()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--server-host", default="127.0.0.1")
+    parser.add_argument("--server-port", type=int, default=9000)
+    parser.add_argument("--port-procesare", type=int, required=True)
+    parser.add_argument("--nume", default=None)
+    args = parser.parse_args()
+
+    threading.Thread(
+        target=server_procesare,
+        args=(args.port_procesare, args.server_host, args.server_port),
+        daemon=True
+    ).start()
+
+    trimite_udp(args.server_host, args.server_port, {
+        "tip": "INREGISTRARE",
+        "port_procesare": args.port_procesare,
+        "adresa": args.nume
+    })
+    print(f"[CLIENT] Inregistrat la server {args.server_host}:{args.server_port}, port procesare {args.port_procesare}")
+
+    def oprire(sig, frame):
+        print("\n[CLIENT] Inchidere...")
+        trimite_udp(args.server_host, args.server_port, {
+            "tip": "DECONECTARE",
+            "port_procesare": args.port_procesare,
+            "adresa": args.nume
+        })
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, oprire)
+    signal.signal(signal.SIGTERM, oprire)
+
+    afiseaza_ajutor()
+
+    while True:
+        try:
+            linie = input("client> ").strip()
+        except EOFError:
+            break
+
+        if not linie:
+            continue
+
+        parti = linie.split()
+        comanda = parti[0].lower()
+
+        if comanda == "iesire":
+            trimite_udp(args.server_host, args.server_port, {
+                "tip": "DECONECTARE",
+                "port_procesare": args.port_procesare,
+                "adresa": args.nume
+            })
+            sys.exit(0)
+
+        elif comanda == "trimite":
+            if len(parti) < 2:
+                print("Utilizare: trimite <fisier> [argumente...]")
+                continue
+            cale_fisier = parti[1]
+            argumente_task = parti[2:]
+            if not os.path.isfile(cale_fisier):
+                print(f"[CLIENT] Fisierul nu exista: {cale_fisier}")
+                continue
+            with open(cale_fisier, "rb") as f:
+                date = f.read()
+            binar_b64 = base64.b64encode(date).decode()
+            print(f"[CLIENT] Trimit task: {cale_fisier}, argumente={argumente_task}")
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((args.server_host, args.server_port))
+            trimite_json(s, {
+                "tip": "TRIMITE_TASK",
+                "binar": binar_b64,
+                "argumente": argumente_task
+            })
+            print("[CLIENT] Astept rezultatul...")
+            rezultat = primeste_json(s)
+            if rezultat and rezultat.get("tip") == "REZULTAT":
+                eroare = rezultat.get("eroare")
+                if eroare:
+                    print(f"[CLIENT] Eroare: {eroare}")
+                else:
+                    print(f"[CLIENT] Task executat. Exit code: {rezultat.get('exit_code')}")
+            s.close()
+
+        elif comanda == "ajutor":
+            afiseaza_ajutor()
+
+        else:
+            print(f"Comanda necunoscuta: {comanda}")
+
+
+if __name__ == "__main__":
+    main()
