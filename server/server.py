@@ -3,7 +3,7 @@ import threading
 import json
 
 HOST = "0.0.0.0"
-PORT = 9000
+PORT = 8815
 
 clienti = []
 lock_clienti = threading.Lock()
