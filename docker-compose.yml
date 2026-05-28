@@ -13,7 +13,7 @@ services:
     build:
       context: ./client
     container_name: distrib-client1
-    command: ["python", "-u", "client.py", "--server-host", "server", "--server-port", "8815", "--port-procesare", "9001", "--nume", "client1"]
+    command: ["python", "-u", "client.py", "--server-host", "172.18.0.1", "--server-port", "8815", "--port-procesare", "9001", "--nume", "client1"]
     depends_on:
       - server
     networks:
@@ -25,7 +25,7 @@ services:
     build:
       context: ./client
     container_name: distrib-client2
-    command: ["python", "-u", "client.py", "--server-host", "server", "--server-port", "8815", "--port-procesare", "9002", "--nume", "client2"]
+    command: ["python", "-u", "client.py", "--server-host", "172.18.0.1", "--server-port", "8815", "--port-procesare", "9002", "--nume", "client2"]
     depends_on:
       - server
     networks:
