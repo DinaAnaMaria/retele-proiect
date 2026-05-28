@@ -1,139 +1,315 @@
-# Proiect Retele de Calculatoare - Tema 21
+# Proiect Retele de Calculatoare - Tema 21: Distribuirea procesarii
 
-Distribuirea procesarii intr-un sistem client-server.
+Sistem distribuit client-server in care un server central primeste task-uri
+(cod binar + argumente) de la clienti si le distribuie spre executie folosind
+algoritm round-robin. Clientul de procesare lanseaza task-ul ca proces separat
+si trimite inapoi exit code-ul, pe care serverul il ruteaza catre clientul
+care a cerut executia.
 
-Echipa: Dina Ana-Maria, Danila Alexia-Andreea
-Grupa 1088
+**Echipa:** Dina Ana-Maria, Danila Alexia-Andreea — Grupa 1088
 
-## Despre proiect
 
-Un server central primeste task-uri (cod binar + argumente) de la clienti si
-le distribuie spre executie folosind round-robin. Clientul care primeste un
-task il executa ca proces separat si trimite inapoi exit code-ul, pe care
-serverul il ruteaza catre clientul care a cerut task-ul.
+---
 
-Inregistrarea si deregistrarea clientilor se fac prin UDP, iar trimiterea
-task-urilor si returnarea rezultatelor prin TCP. Serverul asculta UDP si TCP
-pe acelasi port. Codul binar al task-ului se transmite codificat base64 in
-mesaje JSON.
-
-## Cum se ruleaza
+## 1. Cum se ruleaza
 
 Din radacina proiectului:
 
-    docker compose up --build
+```bash
+docker compose up --build
+```
 
-Aceasta porneste tot clusterul: serverul si doi clienti (client1 si client2)
-intr-o retea Docker comuna. Clientii se inregistreaza automat la pornire.
+Aceasta porneste tot clusterul intr-o retea Docker comuna `distrib-net`:
 
-Pentru oprire: `docker compose down`.
+- `distrib-server` — serverul central, asculta UDP si TCP pe portul 8815
+- `distrib-client1` — primul client procesator, port de procesare 9001
+- `distrib-client2` — al doilea client procesator, port de procesare 9002
 
-## Cum se trimite un task
+Clientii se inregistreaza automat la pornire prin UDP.
 
-Intr-un alt terminal:
+Pentru oprire completa:
 
-    docker attach distrib-client1
+```bash
+docker compose down
+```
 
-Apasa Enter ca sa apara prompt-ul `client>`, apoi:
+### Cum se trimite un task
 
-    trimite example_task.py salut 123
+Intr-un alt terminal, atasati-va la unul din clienti:
 
-Trimite acelasi task de mai multe ori ca sa observi round-robin-ul
-(primul ajunge la client1, al doilea la client2, samd).
+```bash
+docker attach distrib-client1
+```
 
-Pentru a iesi din attach fara a opri clientul: Ctrl+P, apoi Ctrl+Q.
+Apasati Enter ca sa apara prompt-ul `client>`, apoi:
+
+```
+trimite example_task.py salut 123
+```
+
+Pentru a iesi din attach **fara** a opri clientul: `Ctrl+P`, apoi `Ctrl+Q`.
 Pentru log-uri curate ale serverului: `docker compose logs -f server`.
 
-## Structura
+---
 
-    server/      - serverul central (server.py + Dockerfile)
-    client/      - clientul (client.py + Dockerfile + example_task.py)
-    docker-compose.yml
-    README.md
+## 2. Structura proiectului
 
-Munca a fost impartita astfel: Ana-Maria a implementat serverul (gestiunea
-listei de clienti, distributia round-robin, rutarea rezultatelor), iar
-Alexia a implementat clientul (inregistrare UDP, server de procesare,
-executia task-urilor cu subprocess, meniul din consola).
+```
+/server
+  server.py          - serverul central
+  Dockerfile
+/client
+  client.py          - clientul (inregistrare + procesare + meniu)
+  example_task.py    - task de exemplu pentru testare
+  Dockerfile
+/docker-compose.yml  - orchestrare server + 2 clienti
+/README.md
+```
 
-## Protocol
+---
 
-Mesaje JSON. Pe TCP folosim un prefix de 4 octeti pentru lungimea mesajului,
-ca sa stim unde se termina fiecare mesaj in stream.
+## 3. Protocol
 
-INREGISTRARE   - UDP, client -> server, anunta portul de procesare
-DECONECTARE    - UDP, client -> server, scoate clientul din lista
-TRIMITE_TASK   - TCP, client -> server, cod binar (base64) + argumente
-EXECUTA_TASK   - TCP, server -> client, task spre executie
-REZULTAT       - TCP, ruteaza exit code-ul
+Mesajele sunt JSON. Pe TCP folosim un prefix de 4 octeti (big-endian) pentru
+lungimea mesajului, ca sa stim unde se termina fiecare mesaj in stream.
+Inregistrarea si deregistrarea folosesc UDP (datagrame), iar trimiterea
+task-urilor si returnarea rezultatelor folosesc TCP.
 
-## Porturi
+| Mesaj           | Transport | Sens                  | Continut                                |
+|-----------------|-----------|-----------------------|-----------------------------------------|
+| `INREGISTRARE`  | UDP       | client -> server      | `port_procesare`, `adresa` (nume)       |
+| `DECONECTARE`   | UDP       | client -> server      | `port_procesare`, `adresa`              |
+| `TRIMITE_TASK`  | TCP       | client -> server      | `binar` (base64), `argumente`           |
+| `EXECUTA_TASK`  | TCP       | server -> client      | `task_id`, `binar`, `argumente`         |
+| `REZULTAT`      | TCP       | client -> server -> client solicitant | `task_id`, `exit_code`  |
+| `EROARE`        | TCP       | server -> client      | `mesaj`                                 |
 
-Serverul ruleaza pe portul 8815 al masinii gazda (port alocat echipei).
-Clientii folosesc 9001 si 9002 doar in interiorul retelei Docker, deci nu
-intra in conflict cu nimic de pe gazda.
+---
 
+## 4. Porturi
 
-## Scenariu de testare
+- **Server:** 8815 (TCP + UDP) — port alocat echipei, expus pe gazda prin
+  `docker-compose.yml`.
+- **Clienti:** 9001 (client1) si 9002 (client2) — interne retelei Docker,
+  nu intra in conflict cu nimic de pe masina gazda.
 
-Pentru a verifica toate functionalitatile, urmati pasii:
+Daca aveti deja ceva care asculta pe 8815 pe gazda, modificati maparea din
+`docker-compose.yml`:
 
-1. Porniti clusterul:
+```yaml
+ports:
+  - "ALT_PORT:8815/tcp"
+  - "ALT_PORT:8815/udp"
+```
 
-       docker compose up --build
+---
 
-   Asteptati pana vedeti in log:
+## 5. Cum acopera proiectul cerintele temei 21
 
-       [SERVER] Ascult UDP pe 0.0.0.0:8815
-       [SERVER] Ascult TCP pe 0.0.0.0:8815
-       [SERVER] Inregistrat client1:9001. Total: 1
-       [SERVER] Inregistrat client2:9002. Total: 2
+### 5.1 Inregistrarea clientilor (cerinta 2.1)
 
-   Asta confirma ca serverul asculta pe ambele protocoale si ca ambii
-   clienti s-au inregistrat prin UDP.
+La pornire, fiecare client trimite UDP pe `8815` un mesaj `INREGISTRARE` cu
+portul pe care asculta pentru task-uri. Serverul adauga clientul in lista
+`clienti` (`server.py`, functia `gestioneaza_udp`). La iesire — fie prin
+comanda `iesire` din meniu, fie prin SIGTERM la `docker stop` — clientul
+trimite `DECONECTARE` si serverul il scoate din lista.
 
-2. Intr-un al doilea terminal, atasati-va la client1:
+### 5.2 Trimiterea unui task (cerinta 2.2)
 
-       docker attach distrib-client1
+Un client citeste local un fisier (script Python, shell, sau binar ELF),
+il codifica in base64 si il trimite serverului cu `TRIMITE_TASK`. Serverul
+genereaza un `task_id` unic, alege urmatorul client din lista
+(`urmatorul_client()` — round-robin cu `index_rr`) si ii trimite codul +
+argumentele pe portul lui de procesare.
 
-   Apasati Enter pana apare prompt-ul `client>`.
+### 5.3 Executia task-ului (cerinta 2.3)
 
-3. Trimiteti un task:
+Clientul care primeste `EXECUTA_TASK` scrie binarul intr-un fisier temporar
+si il lanseaza cu `subprocess.run` — **proces separat real**, nu thread.
+Captureaza `returncode`-ul si il trimite la server cu un mesaj `REZULTAT`.
+Serverul ruteaza rezultatul catre conexiunea TCP a clientului solicitant.
 
-       trimite example_task.py salut 123
+### 5.4 Eliminarea clientilor (cerinta 2.4)
 
-   In log-ul serverului ar trebui sa apara:
+Doua cazuri tratate:
 
-       [SERVER] Task 1 trimis la client1:9001
-       [SERVER] Rezultat task 1: exit_code=0
+- **Inchidere curata:** clientul trimite `DECONECTARE` la SIGINT/SIGTERM
+  sau la comanda `iesire`. Serverul il sterge imediat din lista.
+- **Client cazut brutal:** la urmatoarea incercare de distribuire, serverul
+  face `connect()` cu `settimeout(5)` la portul lui. Daca esueaza
+  (timeout, connection refused, etc.), il elimina din lista si incearca
+  urmatorul (`trimite_task_la_client`, blocul `except`).
 
-   Iar la client veti vedea `Exit code: 0`. Asta confirma executia ca
-   proces separat si returnarea exit code-ului.
+### 5.5 Tratarea erorilor (cerinta 3)
 
-4. Trimiteti acelasi task din nou:
+- **Niciun client activ:** serverul raspunde solicitantului cu
+  `{"eroare": "Niciun client disponibil"}` in loc sa blocheze.
+- **Task invalid:** validare `if not binar` inainte de a accepta cererea.
+- **Tip de mesaj necunoscut:** raspuns `EROARE` explicit.
+- **Conexiune intrerupta:** `citeste_exact` intoarce `None`, thread-ul
+  iese curat fara crash.
 
-       trimite example_task.py test round-robin
+### 5.6 Server concurent (cerinta 3)
 
-   De data asta in log-ul serverului apare:
+- Un thread separat pentru UDP (inregistrari/deregistrari).
+- Un thread per conexiune TCP acceptata.
+- Un thread per distribuire de task (ca acceptarea TCP sa nu se blocheze).
+- Lock-uri (`lock_clienti`, `lock_rezultate`, `lock_contor`) pentru toate
+  structurile partajate.
 
-       [SERVER] Task 2 trimis la client2:9002
+---
 
-   Asta confirma distributia round-robin (al doilea task ajunge la al
-   doilea client, nu tot la primul).
+## 6. Scenarii de testare (corespund celor 8 scenarii din enuntul temei)
 
-5. Intr-un al treilea terminal, opriti client2:
+### Scenariul 1 — Pornire server in Docker
 
-       docker stop distrib-client2
+```bash
+docker compose up --build
+```
 
-   In log-ul serverului ar trebui sa vedeti eventual o tentativa de
-   contact urmata de eliminarea lui din lista (la urmatorul task trimis).
+In log trebuie sa apara:
 
-6. Reveniti la client1 si trimiteti din nou:
+```
+[SERVER] Ascult UDP pe 0.0.0.0:8815
+[SERVER] Ascult TCP pe 0.0.0.0:8815
+```
 
-       trimite example_task.py dupa eliminare
+### Scenariile 2 + 3 — Pornirea si inregistrarea celor doi clienti
 
-   Task-ul trebuie sa ajunga acum la client1 (singurul ramas activ),
-   confirmand ca lista de clienti se actualizeaza corect.
+In acelasi log, imediat dupa pornirea serverului:
 
-Pentru a iesi din attach fara a opri clientul: Ctrl+P, apoi Ctrl+Q.
-Pentru oprirea completa a clusterului: `docker compose down`.
+```
+[SERVER] Inregistrat client1:9001. Total: 1
+[SERVER] Inregistrat client2:9002. Total: 2
+```
+
+### Scenariul 4 — Trimiterea unui task si distribuirea la primul client
+
+In alt terminal:
+
+```bash
+docker attach distrib-client1
+```
+
+(apasa Enter pana apare prompt-ul `client>`)
+
+```
+trimite example_task.py salut 123
+```
+
+In log-ul serverului:
+
+```
+[SERVER] Task 1 primit de la ..., argumente=['salut', '123']
+[SERVER] Task 1 trimis la client1:9001
+```
+
+### Scenariul 5 — Al doilea task, distribuit round-robin la al doilea client
+
+In acelasi client1:
+
+```
+trimite example_task.py test round-robin
+```
+
+In log-ul serverului:
+
+```
+[SERVER] Task 2 trimis la client2:9002
+```
+
+Asta dovedeste rotatia: al doilea task nu mai ajunge la client1, ci la
+client2.
+
+### Scenariul 6 — Returnarea exit code-ului
+
+Pentru fiecare task de mai sus, la client1 (cel solicitant) apare:
+
+```
+[CLIENT] Task executat. Exit code: 0
+```
+
+Iar in log-ul serverului:
+
+```
+[SERVER] Rezultat task 2: exit_code=0
+```
+
+### Scenariul 7 — Inchiderea unui client si eliminarea din lista
+
+In al treilea terminal:
+
+```bash
+docker stop distrib-client2
+```
+
+`docker stop` trimite SIGTERM clientului. Handler-ul din `client.py`
+(`signal.signal(signal.SIGTERM, oprire)`) trimite `DECONECTARE` inainte
+de iesire. In log-ul serverului:
+
+```
+[SERVER] Client eliminat: client2:9002. Activi: 1
+```
+
+### Scenariul 8 — Distributie corecta dupa eliminare
+
+Inapoi in client1:
+
+```
+trimite example_task.py dupa eliminare
+```
+
+In log-ul serverului:
+
+```
+[SERVER] Task 3 trimis la client1:9001
+```
+
+Task-ul ajunge la singurul client ramas, confirmand actualizarea listei.
+
+### Bonus — Detectarea unui client cazut brutal (fara DECONECTARE)
+
+```bash
+docker kill distrib-client2
+```
+
+`docker kill` trimite SIGKILL (nu SIGTERM), deci clientul nu mai apuca
+sa trimita `DECONECTARE`. Serverul nu stie inca de problema. La urmatorul
+`trimite`, serverul incearca round-robin la client2, primeste un
+`ConnectionRefusedError` / timeout, il sterge din lista si incearca
+clientul urmator:
+
+```
+[SERVER] Client client2:9002 indisponibil: ...
+[SERVER] Client eliminat: client2:9002. Activi: 1
+[SERVER] Task 4 trimis la client1:9001
+```
+
+Asta acopera cerinta 2.4 partea cu "client cazut" si cei 5% din barem
+pentru robustete.
+
+---
+
+## 7. Cum acopera proiectul cerintele generale
+
+- **Repository Git** (cerinta 4.1): cod complet (server + client + auxiliare),
+  acest README, Dockerfile-uri si `docker-compose.yml` la radacina.
+- **Docker** (cerinta 4.2): pornirea cu `docker compose up --build`, asa cum
+  cere enuntul. Nu sunt necesare variabile de mediu sau setari suplimentare.
+- **Stabilitate** (cerinta 5): tratam deconectarile (vezi sectiunea 5.4),
+  task-urile invalide (vezi 5.5), si serverul nu cade daca un client moare.
+- **Integritate** (cerinta 6): cod realizat de echipa, ambele putem explica
+  partea pe care am implementat-o.
+
+---
+
+## 8. Impartirea muncii
+
+- **Dina Ana-Maria** — serverul central: gestionarea listei de clienti
+  (inregistrare UDP, deregistrare, eliminare la cadere), algoritmul
+  round-robin, rutarea rezultatelor, protocol JSON cu framing TCP.
+- **Danila Alexia-Andreea** — clientul: inregistrarea UDP la pornire, serverul de
+  procesare (thread separat care asculta task-uri pe port-ul propriu),
+  executia cu `subprocess`, handler-ele de semnal pentru iesire curata,
+  meniul din consola.
+
