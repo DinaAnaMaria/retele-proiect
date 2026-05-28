@@ -15,6 +15,7 @@ lock_rezultate = threading.Lock()
 contor_task = 0
 lock_contor = threading.Lock()
 
+
 def id_task_nou():
     global contor_task
     with lock_contor:
@@ -45,6 +46,7 @@ def sterge_client(adresa, port):
             else:
                 index_rr = 0
 
+
 def trimite_json(sock, obj):
     data = json.dumps(obj).encode()
     sock.sendall(len(data).to_bytes(4, "big") + data)
@@ -72,6 +74,7 @@ def primeste_json(sock):
     if not data:
         return None
     return json.loads(data.decode())
+
 
 def trimite_task_la_client(task_id, binar, argumente, conexiune_solicitant):
     incercari = 0
@@ -117,6 +120,7 @@ def trimite_task_la_client(task_id, binar, argumente, conexiune_solicitant):
         "eroare": "Niciun client disponibil dupa mai multe incercari"
     })
 
+
 def gestioneaza_client_tcp(conn, addr):
     adresa_client = addr[0]
     try:
@@ -141,7 +145,6 @@ def gestioneaza_client_tcp(conn, addr):
                     daemon=True
                 )
                 t.start()
-                break
 
             elif tip == "REZULTAT":
                 task_id = mesaj.get("task_id")
@@ -156,7 +159,6 @@ def gestioneaza_client_tcp(conn, addr):
                             "task_id": task_id,
                             "exit_code": exit_code
                         })
-                        conn_solicitant.close()
                     except Exception as e:
                         print(f"[SERVER] Nu am putut trimite rezultatul: {e}")
 
@@ -167,6 +169,7 @@ def gestioneaza_client_tcp(conn, addr):
         print(f"[SERVER] Eroare cu {adresa_client}: {e}")
     finally:
         conn.close()
+
 
 def gestioneaza_udp(udp_sock):
     while True:
