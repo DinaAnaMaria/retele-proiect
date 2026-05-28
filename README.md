@@ -84,8 +84,8 @@ Pentru a verifica toate functionalitatile, urmati pasii:
 
    Asteptati pana vedeti in log:
 
-       [SERVER] Ascult UDP pe 0.0.0.0:9000
-       [SERVER] Ascult TCP pe 0.0.0.0:9000
+       [SERVER] Ascult UDP pe 0.0.0.0:8815
+       [SERVER] Ascult TCP pe 0.0.0.0:8815
        [SERVER] Inregistrat client1:9001. Total: 1
        [SERVER] Inregistrat client2:9002. Total: 2
 
