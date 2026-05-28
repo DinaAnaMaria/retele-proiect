@@ -285,11 +285,6 @@ clientul urmator:
 [SERVER] Task 4 trimis la client1:9001
 ```
 
-Asta acopera cerinta 2.4 partea cu "client cazut" si cei 5% din barem
-pentru robustete.
-
----
-
 ## 7. Cum acopera proiectul cerintele generale
 
 - **Repository Git** (cerinta 4.1): cod complet (server + client + auxiliare),
