@@ -1,9 +1,38 @@
-version: "3.9"
-
 services:
   server:
     build:
       context: ./server
     container_name: distrib-server
-    network_mode: host
-    restart: unless-stopped
+    ports:
+      - "8815:8815/tcp"
+      - "8815:8815/udp"
+    networks:
+      - distrib-net
+
+  client1:
+    build:
+      context: ./client
+    container_name: distrib-client1
+    command: ["python", "-u", "client.py", "--server-host", "server", "--server-port", "8815", "--port-procesare", "9001", "--nume", "client1"]
+    depends_on:
+      - server
+    networks:
+      - distrib-net
+    stdin_open: true
+    tty: true
+
+  client2:
+    build:
+      context: ./client
+    container_name: distrib-client2
+    command: ["python", "-u", "client.py", "--server-host", "server", "--server-port", "8815", "--port-procesare", "9002", "--nume", "client2"]
+    depends_on:
+      - server
+    networks:
+      - distrib-net
+    stdin_open: true
+    tty: true
+
+networks:
+  distrib-net:
+    driver: bridge
